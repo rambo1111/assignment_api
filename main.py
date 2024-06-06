@@ -17,12 +17,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure Google Generative AI (move API key to environment variable for security)
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
-else:
-    raise ValueError("Google API key is not set in environment variables")
+# Configure Google Generative AI
+GOOGLE_API_KEY = 'AIzaSyCAzjRDfy9rbkP4v8CWCi9_vWaypLPY15c'
+genai.configure(api_key=GOOGLE_API_KEY)
 
 # Function to extract text from PDF
 def extract_text_from_pdf(pdf_path):
