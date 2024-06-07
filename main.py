@@ -4,22 +4,14 @@ import PyPDF2
 import google.generativeai as genai
 import tempfile
 import os
-from fastapi.middleware.cors import CORSMiddleware
-
-# Initialize FastAPI app
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allow requests from all origins
-    allow_credentials=True,
-    allow_methods=["POST"],
-    allow_headers=["*"],
-)
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 # Configure Google Generative AI
 GOOGLE_API_KEY = 'AIzaSyCAzjRDfy9rbkP4v8CWCi9_vWaypLPY15c'
 genai.configure(api_key=GOOGLE_API_KEY)
+
+# Initialize FastAPI app
+app = FastAPI()
 
 # Function to extract text from PDF
 def extract_text_from_pdf(pdf_path):
@@ -27,9 +19,7 @@ def extract_text_from_pdf(pdf_path):
     with open(pdf_path, "rb") as f:
         reader = PyPDF2.PdfReader(f)
         for page in reader.pages:
-            extracted_text = page.extract_text()
-            if extracted_text:  # Ensure there is text extracted from the page
-                text += extracted_text
+            text += page.extract_text()
     return text
 
 # Endpoint to handle PDF upload and subject input
@@ -47,17 +37,18 @@ async def process_pdf(file: UploadFile = File(...), subject: str = Form(...)):
     os.remove(temp_pdf_path)
     
     # Generate content using Google Generative AI
-    response = genai.generate_text(
-        prompt=f'I have extracted text from a PDF, which is my {subject} assignment. Please answer these questions, define the following: {extracted_text}',
-        safety_settings=[
-            {"category": "HATE_SPEECH", "block_threshold": "BLOCK_NONE"},
-            {"category": "HARASSMENT", "block_threshold": "BLOCK_NONE"},
-            {"category": "SEXUALLY_EXPLICIT", "block_threshold": "BLOCK_NONE"},
-            {"category": "DANGEROUS_CONTENT", "block_threshold": "BLOCK_NONE"},
-        ]
+    model = genai.GenerativeModel(model_name="gemini-pro")
+    response = model.generate_content(
+        [f'I have extracted text from a pdf, which is my {subject} assignment. Please answer these questions, define the following: {extracted_text}'],
+        safety_settings={
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE
+        }
     )
-    
-    return JSONResponse(content={"response": response.result})
+        
+    return JSONResponse(content=response.text)
 
 # Run the application
 if __name__ == "__main__":
