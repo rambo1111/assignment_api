@@ -1,10 +1,10 @@
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import JSONResponse
 import PyPDF2
+import google.generativeai as genai
 import tempfile
 import os
 import easyocr
-from fastapi.middleware.cors import CORSMiddleware
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 # Configure Google Generative AI
@@ -22,6 +22,7 @@ app.add_middleware(
     allow_methods=["POST"],
     allow_headers=["*"],
 )
+
 
 def extract_text_from_pdf(pdf_path):
     text = ""
@@ -68,7 +69,7 @@ def handle_image(image_path, subject, model):
     return response.text
 
 @app.post("/process-file/")
-async def process_file(file: UploadFile = File(...), subject: str = "Cyber security"):
+async def process_file(file: UploadFile = File(...), subject: str = Form(...)):
     # Create a temporary directory
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Save the uploaded file to the temporary directory
