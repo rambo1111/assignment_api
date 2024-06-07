@@ -1,9 +1,10 @@
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import JSONResponse
 import PyPDF2
-import google.generativeai as genai
 import tempfile
 import os
+import easyocr
+from fastapi.middleware.cors import CORSMiddleware
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 # Configure Google Generative AI
@@ -13,7 +14,15 @@ genai.configure(api_key=GOOGLE_API_KEY)
 # Initialize FastAPI app
 app = FastAPI()
 
-# Function to extract text from PDF
+# Configure CORS to allow all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow requests from all origins
+    allow_credentials=True,
+    allow_methods=["POST"],
+    allow_headers=["*"],
+)
+
 def extract_text_from_pdf(pdf_path):
     text = ""
     with open(pdf_path, "rb") as f:
@@ -22,24 +31,11 @@ def extract_text_from_pdf(pdf_path):
             text += page.extract_text()
     return text
 
-# Endpoint to handle PDF upload and subject input
-@app.post("/process_pdf/")
-async def process_pdf(file: UploadFile = File(...), subject: str = Form(...)):
-    # Create a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
-        temp_pdf.write(await file.read())
-        temp_pdf_path = temp_pdf.name
+def handle_pdf(pdf_path, subject, model):
+    extracted_text = extract_text_from_pdf(pdf_path)
 
-    # Extract text from the PDF
-    extracted_text = extract_text_from_pdf(temp_pdf_path)
-    
-    # Remove the temporary file
-    os.remove(temp_pdf_path)
-    
-    # Generate content using Google Generative AI
-    model = genai.GenerativeModel(model_name="gemini-pro")
     response = model.generate_content(
-        [f'I have extracted text from a pdf, which is my {subject} assignment. Please answer these questions, define the following: {extracted_text}'],
+        [f'I have extracted text from a pdf, which is my {subject} assignment. Please answer these questions:{extracted_text}'],
         safety_settings={
             HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
             HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
@@ -47,10 +43,55 @@ async def process_pdf(file: UploadFile = File(...), subject: str = Form(...)):
             HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE
         }
     )
-        
-    return JSONResponse(content=response.text)
+    
+    return response.text
 
-# Run the application
+def extract_text_from_img(image_path):
+    reader = easyocr.Reader(['en'])
+    results = reader.readtext(image_path)
+    text = " ".join([text for _, text, _ in results])
+    return text
+
+def handle_image(image_path, subject, model):
+    extracted_text = extract_text_from_img(image_path)
+
+    response = model.generate_content(
+        [f'I have extracted text from an image, which is my {subject} assignment. Please answer these questions:{extracted_text}'],
+        safety_settings={
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE
+        }
+    )
+    
+    return response.text
+
+@app.post("/process-file/")
+async def process_file(file: UploadFile = File(...), subject: str = "Cyber security"):
+    # Create a temporary directory
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        # Save the uploaded file to the temporary directory
+        file_path = os.path.join(tmpdirname, file.filename)
+        with open(file_path, "wb") as f:
+            f.write(await file.read())
+
+        # Initialize the Generative AI model
+        model = genai.GenerativeModel(model_name="gemini-pro")
+
+        try:
+            # Determine file type and process accordingly
+            if file.filename.lower().endswith(".pdf"):
+                response = handle_pdf(file_path, subject, model)
+            elif file.filename.lower().endswith((".jpg", ".jpeg", ".png")):
+                response = handle_image(file_path, subject, model)
+            else:
+                raise ValueError("Unsupported file type. Please provide a PDF or image file.")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    return JSONResponse(content={"response": response})
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
