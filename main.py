@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -7,6 +8,10 @@ import tempfile
 import os
 import easyocr
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -91,6 +96,10 @@ async def process_file(file: UploadFile = File(...), subject: str = Form(...)):
             raise HTTPException(status_code=400, detail=str(e))
 
     return JSONResponse(content={"response": response})
+
+@app.get("/healthz")
+async def health_check():
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     import uvicorn
