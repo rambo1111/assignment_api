@@ -5,3 +5,4 @@ google-generativeai
 easyocr
 pytesseract
 Pillow
+gunicorn
