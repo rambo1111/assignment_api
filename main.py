@@ -1,21 +1,27 @@
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import PyPDF2
 import google.generativeai as genai
 import tempfile
 import os
-import pytesseract
-from PIL import Image
+import easyocr
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 app = FastAPI()
 
+# Configure CORS to allow all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow requests from all origins
+    allow_credentials=True,
+    allow_methods=["POST"],
+    allow_headers=["*"],
+)
+
 # Configure Google Generative AI
 GOOGLE_API_KEY = 'AIzaSyCAzjRDfy9rbkP4v8CWCi9_vWaypLPY15c'
 genai.configure(api_key=GOOGLE_API_KEY)
-
-# Specify the Tesseract executable path
-pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
 
 def extract_text_from_pdf(pdf_path):
     text = ""
@@ -41,8 +47,9 @@ def handle_pdf(pdf_path, subject, model):
     return response.text
 
 def extract_text_from_img(image_path):
-    image = Image.open(image_path)
-    text = pytesseract.image_to_string(image)
+    reader = easyocr.Reader(['en'])
+    results = reader.readtext(image_path)
+    text = " ".join([text for _, text, _ in results])
     return text
 
 def handle_image(image_path, subject, model):
