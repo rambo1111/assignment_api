@@ -32,7 +32,7 @@ app.add_middleware(
 )
 
 # Configure Google Generative AI
-GOOGLE_API_KEY = 'AIzaSyCAzjRDfy9rbkP4v8CWCi9_vWaypLPY15c'
+GOOGLE_API_KEY = 'AIzaSyBePlvw3R-lufo5TED_OwQUD_3UqT8I0Vo'
 genai.configure(api_key=GOOGLE_API_KEY)
 
 def extract_text_from_pdf(pdf_path):
